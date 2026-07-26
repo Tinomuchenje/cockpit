@@ -157,6 +157,26 @@ rendered screen rather than an attempt to parse raw escape codes server-side.
 After 5 minutes waiting, the session pane asks whether you're still on it and
 offers to close it, so forgotten sessions don't pile up.
 
+### See what a session can reach
+
+**Environment** in the project bar lists the skills, MCP servers and plugins a
+session in that project will actually have, read live from Claude Code's own
+config. Filter across all three, and expand a skill to read its full description.
+
+Two things it's careful about:
+
+- **Skills from disabled plugins are not listed.** The files are still on disk, so
+  a naive scan would claim a skill is available when a session can't use it.
+- **MCP servers needing auth are distinguished by scope.** A *configured* server
+  (user or project) needing authentication is flagged amber, because it's
+  actionable. A claude.ai *connector* is listed but stays muted — you may never
+  have intended to authorise it, and treating those as alarms makes the warning
+  meaningless.
+
+It's read-only by design. Claude Code owns these files and writes them while it
+runs, so editing them here would race its own writes. Config changes also need a
+respawn to take effect, which is what **Restart** on a session is for.
+
 ### Keep the board manageable
 
 - **Archive** a project to drop it and its cards off the board without deleting
@@ -289,9 +309,16 @@ the card does — see `deleteCard`.
 | `/api/sessions` | `GET` `POST` | `POST` takes a `cardId` (or a bare `projectId`) |
 | `/api/sessions/[id]` | `POST` `DELETE` | `POST` restarts in place |
 | `/api/browse` | `GET` | Directory listing for the folder picker |
+| `/api/environment` | `GET` | Skills, MCP servers and plugins for a project |
 
 Deleting a card or clearing a column kills any live PTY for those cards first, so
 a delete can't orphan a running process.
+
+`/api/environment` reads Claude Code's config and **redacts before responding**.
+MCP definitions routinely carry credentials — API keys in `env`, bearer tokens in
+`headers`, a token in a URL query — so it returns only a name, a scope, a
+transport label, and one identifying hint (a bare command name, or a URL's host
+with no path or query). The raw config is never passed through.
 
 ---
 
@@ -389,6 +416,12 @@ specifically, so another dev server bound to `0.0.0.0` can hold the same port
 without an obvious conflict. Since `localhost` resolves to `::1` first, the other
 app wins. Give Cockpit its own port with `PORT=3200`.
 
+**The page renders but nothing is interactive, with `webpack-hmr` errors in the
+console.** Next blocks cross-origin requests to its dev endpoints, which rejects
+the HMR WebSocket and leaves the app unhydrated. `allowedDevOrigins` in
+`next.config.ts` permits the loopback literals, so `127.0.0.1` works as well as
+`localhost` — add any other host you reach the dev server by. Development only.
+
 **A session shows an error about `claude` not being found.** The CLI has to be on
 the PATH of the process running `npm run dev`.
 
@@ -408,6 +441,7 @@ src/
     sessionManager.js           owns every live PTY        (CommonJS)
     sessionManager.d.ts         hand-written types for it
     types.ts                    shared domain + frame types
+    environment.ts              reads Claude Code's skills/MCP/plugin config
     chime.ts                    Web Audio notification tones
     projectColor.ts             per-project accent colours
   app/
@@ -419,6 +453,7 @@ src/
     AppShell.tsx                tab bar, pane switching
     Board.tsx  Column.tsx  CardTile.tsx
     AttentionPanel.tsx          board-side triage for waiting sessions
+    EnvironmentDialog.tsx       skills / MCP / plugins panel
     TerminalPane.tsx            xterm host, zoom, screen capture
     PromptComposer.tsx          the pre-filled editable prompt
     FolderPicker.tsx            filesystem browser
@@ -441,7 +476,7 @@ folder with a filesystem picker; archiving; bulk-clearing Done; terminal session
 that survive navigation and reloads with scrollback replay; cards wired to
 sessions with a pre-filled prompt; tabbed sessions with idle/exit badging, chimes
 and title counts; board-side triage with inline replies; restart in place;
-terminal zoom.
+terminal zoom; a read-only Environment panel for skills, MCP servers and plugins.
 
 **Not built yet** (the remaining spec milestones):
 
@@ -462,31 +497,30 @@ Captured so they don't get lost. Roughly ordered by how ready each one is, with
 the awkward part named — several of these are cheaper or more expensive than they
 first look.
 
-### Skills and MCP visibility
+### Editing skills and MCP config
 
-Surface what a session actually has available: MCP servers, skills, plugins,
-hooks, and which of them need attention.
-
-The cheapest useful version is read-only, because Claude Code already keeps all of
-this on disk:
+The read-only half is built — see [See what a session can
+reach](#see-what-a-session-can-reach). `src/lib/environment.ts` reads:
 
 | Source | Holds |
 |---|---|
-| `~/.claude/skills/` | installed skills |
-| `~/.claude/plugins/installed_plugins.json` | plugins and their marketplaces |
-| `~/.claude/settings.json`, `~/.claude.json` | settings and MCP server definitions |
-| `~/.claude/mcp-needs-auth-cache.json` | which MCP servers need authenticating |
-| project `.claude/`, `.mcp.json` | per-project overrides |
+| `~/.claude/skills/` | user skills, either `<name>/SKILL.md` or a bundle a level deeper |
+| plugin `installPath/skills/` | skills a plugin brings, if that plugin is enabled |
+| `~/.claude/plugins/installed_plugins.json` | plugins, versions, marketplaces |
+| `~/.claude/settings.json` | which plugins are enabled |
+| `~/.claude.json` | MCP servers, per-project under `projects[path].mcpServers` |
+| project `.mcp.json` | the shareable per-repo MCP convention |
+| `~/.claude/mcp-needs-auth-cache.json` | servers and connectors needing auth |
 
-That last one is the standout: a session will happily start with an MCP server
-that needs auth and only mention it in passing. Cockpit could badge that on the
-project pill or the card before you run anything.
+**Editing** is the part left, and it's a bigger step than it looks: you'd be
+writing files Claude Code owns while it may be writing them itself. If it's worth
+doing, do it narrowly — toggling a plugin on or off is a single boolean in
+`settings.json` and much safer than editing MCP definitions in place.
 
-This pairs with **Restart**, which already exists precisely because config changes
-need a respawn — so a config panel has an obvious "apply" action.
-
-Editing config, rather than just reading it, is a bigger step: you'd be writing
-files Claude Code owns and racing its own writes. Read-only first.
+Also unbuilt: hooks (they live in `settings.json` and could be listed the same
+way), and per-session environment rather than per-project — a session started
+before a config change still has the old one, which the panel doesn't currently
+distinguish.
 
 ### Model agnostic
 

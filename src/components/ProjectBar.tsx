@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useCockpit } from './CockpitProvider';
 import { projectColor } from '@/lib/projectColor';
+import { EnvironmentDialog } from './EnvironmentDialog';
 import { Button, Dialog, cx } from './ui';
 
 /** Filter pills across the top, plus the two primary actions. */
@@ -24,6 +25,7 @@ export function ProjectBar({
   const { projects, cards, openProjectSession, removeProject, setProjectArchived } =
     useCockpit();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [showEnvironment, setShowEnvironment] = useState(false);
 
   const project = projects.find((p) => p.id === projectFilter);
   const archivedCount = projects.filter((p) => p.archived).length;
@@ -106,6 +108,14 @@ export function ProjectBar({
             <span className="mx-1 h-5 w-px bg-line" />
           </>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowEnvironment(true)}
+          title="Skills, MCP servers and plugins available to sessions here"
+        >
+          Environment
+        </Button>
         <Button size="sm" variant="secondary" onClick={onAddProject}>
           Add project
         </Button>
@@ -113,6 +123,10 @@ export function ProjectBar({
           New card
         </Button>
       </div>
+
+      {showEnvironment && (
+        <EnvironmentDialog project={project} onClose={() => setShowEnvironment(false)} />
+      )}
 
       {confirmRemove && removing && (
         <Dialog
