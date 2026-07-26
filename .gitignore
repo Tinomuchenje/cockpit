@@ -36,8 +36,13 @@ yarn-error.log*
 # vercel
 .vercel
 
-# local data store
+# local data store — the SQLite board is per-machine, never shared
 /data/
+
+# Claude Code local state. settings.local.json is also covered by a global
+# ignore on this machine, but list it here so a fresh clone is safe too.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # typescript
 *.tsbuildinfo
