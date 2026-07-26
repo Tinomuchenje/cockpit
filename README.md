@@ -31,6 +31,7 @@ into one window and one board.
 - [Troubleshooting](#troubleshooting)
 - [Project layout](#project-layout)
 - [What's built, what isn't](#whats-built-what-isnt)
+- [Ideas for later](#ideas-for-later)
 
 ---
 
@@ -442,7 +443,7 @@ sessions with a pre-filled prompt; tabbed sessions with idle/exit badging, chime
 and title counts; board-side triage with inline replies; restart in place;
 terminal zoom.
 
-**Not built yet:**
+**Not built yet** (the remaining spec milestones):
 
 - A git panel (`status` / `diff` / commit / push from the UI). Git is manual in
   the terminal today.
@@ -452,3 +453,106 @@ terminal zoom.
   already in the schema for it.
 - Tab reordering.
 - macOS/Linux verification. The platform branches exist but are untested.
+
+---
+
+## Ideas for later
+
+Captured so they don't get lost. Roughly ordered by how ready each one is, with
+the awkward part named — several of these are cheaper or more expensive than they
+first look.
+
+### Skills and MCP visibility
+
+Surface what a session actually has available: MCP servers, skills, plugins,
+hooks, and which of them need attention.
+
+The cheapest useful version is read-only, because Claude Code already keeps all of
+this on disk:
+
+| Source | Holds |
+|---|---|
+| `~/.claude/skills/` | installed skills |
+| `~/.claude/plugins/installed_plugins.json` | plugins and their marketplaces |
+| `~/.claude/settings.json`, `~/.claude.json` | settings and MCP server definitions |
+| `~/.claude/mcp-needs-auth-cache.json` | which MCP servers need authenticating |
+| project `.claude/`, `.mcp.json` | per-project overrides |
+
+That last one is the standout: a session will happily start with an MCP server
+that needs auth and only mention it in passing. Cockpit could badge that on the
+project pill or the card before you run anything.
+
+This pairs with **Restart**, which already exists precisely because config changes
+need a respawn — so a config panel has an obvious "apply" action.
+
+Editing config, rather than just reading it, is a bigger step: you'd be writing
+files Claude Code owns and racing its own writes. Read-only first.
+
+### Model agnostic
+
+Worth splitting, because three quite different things get called this and they
+differ by orders of magnitude in cost:
+
+1. **Another vendor's CLI** (Codex, Gemini CLI, opencode, and so on). Genuinely
+   modest. `spawnClaude()` in `src/lib/sessionManager.js` is the only code that
+   knows which binary runs; everything else — PTY handling, streaming, idle
+   detection, scrollback, badging — is already vendor-neutral. Turn it into a
+   small runner registry with a per-project or per-card choice, and store the
+   runner on the card. The one thing that would need per-runner knowledge is the
+   attention panel's quick keys, since `1`/`2`/`Enter` assume Claude Code's
+   numbered prompts.
+
+2. **Claude Code pointed at a different model** — Kimi, DeepSeek, a local model —
+   via an OpenAI-compatible proxy and `ANTHROPIC_BASE_URL`. This is the cheapest
+   option by far: it's environment configuration per project, with no
+   architectural change at all. Probably where to start.
+
+3. **Cockpit running its own agent loop.** Don't, unless the goal has genuinely
+   changed. Cockpit is a session host; Claude Code is the harness and the loop.
+   Building an agent here means owning tool dispatch, permissions, context
+   management and streaming — a different product, and the reason the current
+   design is as small as it is.
+
+So: (2) for reach, (1) for real multi-vendor support, and treat (3) as a rewrite
+rather than a feature.
+
+### Agentic workflows
+
+Running multi-step or fan-out work from a card rather than one interactive session.
+
+This depends on **headless mode** landing first — you can't orchestrate an
+interactive PTY unattended, which is the whole reason headless is a separate
+milestone. Two constraints worth writing down now:
+
+- Never run two writers in the same folder. Parallel work in one project needs
+  isolated checkouts; Claude Code has native worktree support (`-w`) rather than
+  hand-rolling it.
+- Don't let the board imply more concurrency than the engine delivers. If several
+  headless cards are queued, show them queued, not all active.
+
+The board is already the right surface for this: a workflow card with sub-steps
+maps onto columns more naturally than onto a terminal.
+
+### Pulling tasks from project management tools
+
+ClickUp, or whatever the tasks actually live in.
+
+The honest cost here is **sync**, not the API. One-way import — pull tasks in as
+cards, keep the external id and a link on the card, never write back — is a small
+feature and sidesteps the hard part entirely. Two-way sync means reconciling
+status models, handling edits on both sides, and conflict rules, and it is where
+integrations like this usually stop being worth it.
+
+Two things to settle before building anything:
+
+- **Is ClickUp the right target?** If the team's work actually lives in Asana,
+  build for that instead. Pick the tool tasks genuinely originate in — an
+  integration with the wrong one is worse than none.
+- **Does a task from a tracker make a good card?** Cards here need a real
+  description with acceptance criteria to be worth running. A one-line ticket
+  title imported as a card will just mean more back-and-forth in the session. An
+  import that pulls the ticket's full description and comments is useful; one that
+  pulls titles is noise.
+
+Start read-only, with a manual "import" action rather than background polling, and
+see whether the imported cards actually get run.
