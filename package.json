@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
-    "//build": "--webpack for the same reason server.js passes it: Turbopack fails to resolve the node:sqlite builtin.",
     "build": "next build --webpack",
     "start": "cross-env NODE_ENV=production node server.js",
     "lint": "eslint",
