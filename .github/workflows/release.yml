@@ -52,6 +52,22 @@ jobs:
 
       - run: npm run build
 
+      # electron-builder's own asset-publish tasks (the installer+blockmap vs
+      # latest.yml) each independently create the release if one doesn't
+      # already exist for the tag, with no coordination between them — every
+      # from-scratch release ends up as two duplicate drafts with the assets
+      # split across them. Pre-creating it here, before Package runs, gives
+      # electron-builder an existing release to attach to instead. Idempotent,
+      # so a second matrix job (or a retry) finding it already there is a
+      # silent no-op, not a failure.
+      - name: Ensure a draft release exists for this tag
+        shell: bash
+        run: |
+          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
+          gh release create "${{ github.ref_name }}" --draft --title "${{ github.ref_name }}" --notes ""
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # macOS is built unsigned and unnotarised. Without this, electron-builder
       # tries to discover a signing identity, finds none, and fails the job.
       # See the README on what this costs Mac users.
