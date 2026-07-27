@@ -7,6 +7,7 @@
   "description": "Run Claude Code across several projects from one window, driven by a Kanban board.",
   "author": "Tino Muchenje",
   "scripts": {
+    "postinstall": "node scripts/make-icon.mjs",
     "dev": "node server.js",
     "build": "next build --webpack",
     "start": "cross-env NODE_ENV=production node server.js",

@@ -57,6 +57,9 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Cockpit
+  # Versionless, so the landing page can link straight at
+  # releases/latest/download/Cockpit-Setup.exe instead of the releases page.
+  artifactName: "${productName}-Setup.${ext}"
 
 # UNVERIFIED. The non-Windows branch of spawnClaude() has never been run, and
 # nobody has launched this target on real hardware. CI can produce a dmg; that
@@ -74,9 +77,12 @@ mac:
         - arm64
   icon: build/icon.png
   category: public.app-category.developer-tools
+  # Same reasoning as nsis.artifactName: a stable, versionless name per arch.
+  artifactName: "${productName}-${arch}.${ext}"
 
 linux:
   target:
     - AppImage
   icon: build/icon.png
   category: Development
+  artifactName: "${productName}.${ext}"

@@ -265,6 +265,11 @@ function createWindow() {
     backgroundColor: '#0b0d12', // Matches the dark theme, so no white flash on boot.
     title: 'Cockpit',
     show: false,
+    // Windows and macOS read the icon from the exe/app bundle regardless, but
+    // Linux (and a dev-mode `electron .`) only ever show a window icon if one
+    // is set here. build/icon.png always exists by this point: it's a
+    // postinstall step (see scripts/make-icon.mjs).
+    icon: path.join(ROOT, 'build', 'icon.png'),
     webPreferences: {
       // The renderer is just a web page talking to localhost over HTTP. It
       // needs no Node access, so it doesn't get any.
