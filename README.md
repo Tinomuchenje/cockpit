@@ -1,6 +1,12 @@
 # Cockpit
 
-Run Claude Code across several projects from one window, driven by a Kanban board.
+**Run Claude Code across several projects from one window, driven by a Kanban board.**
+
+[Download](https://github.com/Tinomuchenje/cockpit/releases/latest) ·
+[Website](https://tinomuchenje.github.io/cockpit/) ·
+MIT licensed
+
+![The Cockpit board](docs/img/board.png)
 
 Each card is a task in a project. Hit **Run** and a real interactive `claude`
 session opens in that project's folder, with the card's description pre-filled
@@ -13,10 +19,16 @@ picking a workspace, starting Claude Code, pasting context, waiting, then
 repeating the whole ceremony to touch a different project. Cockpit collapses that
 into one window and one board.
 
+![A Claude Code session inside a Cockpit tab](docs/img/session.png)
+
+You need the `claude` CLI installed and signed in. Cockpit runs it; it is not a
+replacement for it, and it is not affiliated with Anthropic.
+
 ---
 
 ## Contents
 
+- [Install](#install)
 - [Quick start](#quick-start)
 - [Concepts](#concepts)
 - [Using it](#using-it)
@@ -31,7 +43,43 @@ into one window and one board.
 - [Troubleshooting](#troubleshooting)
 - [Project layout](#project-layout)
 - [What's built, what isn't](#whats-built-what-isnt)
+- [Releasing](#releasing)
 - [Ideas for later](#ideas-for-later)
+
+---
+
+## Install
+
+Cockpit ships as a desktop app. The Node server runs as a child of the app
+window, so opening it starts the server and quitting it stops the server and
+every session, with nothing left running in the background.
+
+| Platform | |
+|---|---|
+| **Windows** | Installer from [Releases](https://github.com/Tinomuchenje/cockpit/releases/latest). Per-user, no admin prompt. Updates itself. |
+| **macOS** | dmg for Intel and Apple Silicon. **Unverified — see below.** |
+| **From source** | `npm ci --foreground-scripts` then `npm run app` |
+
+**Neither build is code signed.** On Windows that means SmartScreen says
+"unknown publisher": choose *More info* → *Run anyway*. On macOS it means
+Gatekeeper quarantines the download and reports the app as damaged, which you
+clear with:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Cockpit.app
+```
+
+> **macOS is unverified.** Cockpit is built and tested on Windows. The
+> non-Windows branches exist and CI produces a dmg, but nobody has run it on
+> real hardware. Auto-updates also cannot work there: Squirrel.Mac refuses to
+> update an unsigned app. Both problems are fixed by an Apple Developer account
+> rather than by code. Treat the Mac build as a preview.
+
+`npm ci --foreground-scripts` matters on npm 11+, which blocks install scripts
+by default. Electron's postinstall is what downloads its binary, so a plain
+`npm install` leaves you with no Electron and a confusing failure. node-pty
+needs no script — it ships Node-API prebuilds, which is also why `npmRebuild`
+is off in `electron-builder.yml` and why no C++ toolchain is required.
 
 ---
 
@@ -47,15 +95,55 @@ npm run dev            # http://localhost:3000
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | One process: Next.js plus the WebSocket/PTY layer |
+| `npm run dev` | One process: Next.js plus the WebSocket/PTY layer, in the browser |
+| `npm run app` | Build, then launch the desktop app |
+| `npm run app:dev` | Launch the desktop app against the existing build |
 | `npm run build` | Production build (webpack — see [Platform notes](#platform-notes)) |
-| `npm start` | Serve the production build |
+| `npm start` | Serve the production build in the browser |
+| `npm run dist` | Build an installer for this platform into `release/` |
 | `npm run typecheck` | `next typegen` then `tsc --noEmit` |
 | `npm run lint` | ESLint |
+
+Working on the UI is fastest in the browser with `npm run dev`. The desktop app
+serves the production build, so a code change needs `npm run build` before it
+shows up.
 
 `npm run typecheck` runs `next typegen` first because the API routes use Next's
 generated `RouteContext<'/api/...'>` types. Without it, a clean checkout fails to
 typecheck with "Cannot find name 'RouteContext'".
+
+### Running headless, without the desktop app
+
+The desktop app is the normal way to run Cockpit. `scripts/cockpit.ps1`
+(Windows) is the alternative when you want it in a browser instead: it starts
+the production server hidden if it isn't already up, waits for it to answer,
+then opens the board in a chromeless browser window.
+
+Note the two paths keep separate boards. The app stores its database under
+`%APPDATA%\Cockpit`; the script uses `./data`. Set `COCKPIT_DATA_DIR` on either
+to point them at the same one.
+
+```powershell
+scripts\cockpit.ps1              # start if needed, then open the window
+scripts\cockpit.ps1 -Status      # up or down, and on which pid
+scripts\cockpit.ps1 -Stop        # shut down — this ends every live session
+scripts\cockpit.ps1 -NoBrowser   # start headless
+```
+
+Relaunching is a no-op rather than a second server, so a shortcut can be clicked
+freely. The hidden process writes to `data/cockpit.log` and `data/cockpit.err.log`;
+that is the only place a startup failure appears.
+
+Two things worth knowing before automating this further:
+
+- **Don't run it as a Windows service.** NSSM and `node-windows` install under
+  LOCAL SYSTEM, which has no `~/.claude`, no `claude` on PATH, and no interactive
+  session. Cockpit would boot and every session would fail to spawn. It has to run
+  as the logged-in user.
+- **Starting it at logon is a security decision, not a convenience one.** See
+  [Security](#security) — always-on means an unauthenticated terminal server is
+  listening the whole time you're logged in. On demand keeps that window to when
+  you're actually using it.
 
 ---
 
@@ -365,6 +453,28 @@ reachable off-machine.
 Do not change the bind address without adding authentication first. If you ever
 expose this, treat it as a serious risk.
 
+**Loopback keeps other machines out, not other websites.** A page in any tab can
+reach `127.0.0.1`, and the browser's usual protections do not cover this case:
+
+- WebSockets are exempt from the same-origin policy entirely. Any site could
+  open `ws://127.0.0.1:3000/ws`, read the `hello` frame listing your live
+  sessions, and send `input` frames into one. That is keystroke injection into a
+  live Claude Code session.
+- The JSON routes look CSRF-safe and aren't. `req.json()` parses the body
+  whatever the Content-Type claims, so a cross-origin POST sent as `text/plain`
+  is a "simple" request, skips preflight, and takes effect even though the
+  attacker cannot read the reply.
+
+Both are closed by an `Origin` allowlist in `server.js`, checked on every
+request and before the WebSocket handshake completes. Browsers attach `Origin`
+to cross-origin fetches and form posts and page script cannot forge it. A
+missing `Origin` is allowed, because that means it is not a browser cross-origin
+request at all; a literal `null` is not.
+
+What this does **not** protect against is anything that can already run code on
+your machine. On a shared or multi-user box, treat a running Cockpit as an open
+shell.
+
 ---
 
 ## Platform notes
@@ -434,6 +544,14 @@ the PATH of the process running `npm run dev`.
 
 ```
 server.js                       custom server: Next handler + multiplexed /ws
+electron/
+  main.js                       desktop shell: forks the server, owns lifecycle
+electron-builder.yml            packaging: targets, publishing, icon
+.github/workflows/release.yml   tag -> installers -> draft GitHub Release
+scripts/
+  cockpit.ps1                   headless launcher for the browser route
+  make-icon.mjs                 generates build/icon.png and the favicon
+docs/                           GitHub Pages landing page + screenshots
 src/
   lib/
     db.js                       SQLite store, migrations   (CommonJS)
@@ -457,8 +575,10 @@ src/
     TerminalPane.tsx            xterm host, zoom, screen capture
     PromptComposer.tsx          the pre-filled editable prompt
     FolderPicker.tsx            filesystem browser
+    AboutDialog.tsx             in-app "what this is" panel
     ui.tsx                      buttons, dialogs, fields, primitives
-data/cockpit.db                 your board (gitignored)
+data/cockpit.db                 your board, browser route (gitignored)
+release/                        electron-builder output (gitignored)
 ```
 
 `db.js` and `sessionManager.js` are CommonJS JavaScript rather than TypeScript
@@ -476,7 +596,9 @@ folder with a filesystem picker; archiving; bulk-clearing Done; terminal session
 that survive navigation and reloads with scrollback replay; cards wired to
 sessions with a pre-filled prompt; tabbed sessions with idle/exit badging, chimes
 and title counts; board-side triage with inline replies; restart in place;
-terminal zoom; a read-only Environment panel for skills, MCP servers and plugins.
+terminal zoom; a read-only Environment panel for skills, MCP servers and plugins;
+an in-app panel explaining the model for first-time users; a packaged desktop app
+with lifecycle tied to the window and self-updating Windows builds.
 
 **Not built yet** (the remaining spec milestones):
 
@@ -488,6 +610,34 @@ terminal zoom; a read-only Environment panel for skills, MCP servers and plugins
   already in the schema for it.
 - Tab reordering.
 - macOS/Linux verification. The platform branches exist but are untested.
+- **Automated tests. There are none.** The session lifecycle is exactly the
+  fiddly async code that needs them: a restart bug that left the new PTY
+  orphaned and the session silently unable to receive keystrokes shipped
+  undetected. This is the first thing to fix before taking pull requests.
+
+---
+
+## Releasing
+
+Tagging is what publishes. `.github/workflows/release.yml` builds on
+`windows-latest` and `macos-latest` and uploads to a **draft** GitHub Release,
+so you write the notes and check the artefacts before anyone can download them.
+
+```bash
+npm version patch        # bumps package.json and creates the tag
+git push --follow-tags   # pushing the tag is the trigger
+```
+
+Publishing the draft is also what makes `electron-updater` start offering the
+update to existing Windows installs. Nothing is offered while it stays a draft.
+
+The matrix uses `fail-fast: false` deliberately: a broken macOS build should not
+withhold a working Windows one.
+
+Auto-update only works on Windows. macOS needs a signed app before
+Squirrel.Mac will apply an update, so Mac users re-download. If you later get an
+Apple Developer account, notarisation and Mac auto-update are a CI secrets
+change rather than a code change.
 
 ---
 

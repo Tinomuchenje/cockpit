@@ -131,14 +131,29 @@ function appendToBuffer(entry, chunk) {
 }
 
 function wire(entry) {
-  entry.pty.onData((data) => {
+  /*
+   * Bind to this specific process, not to whatever entry.pty happens to be
+   * when the event fires. A restart kills the old PTY and immediately puts a
+   * new one on the same entry, but the old process's exit event arrives after
+   * that. Without this guard the dying process's handler runs against the live
+   * one: it nulls entry.pty, so write() and resize() silently go nowhere, and
+   * it marks the session exited. The tab still shows output from the new
+   * process, so the session looks alive while being unable to receive a
+   * keystroke, and the orphaned claude keeps running with nothing attached.
+   */
+  const self = entry.pty;
+  const superseded = () => entry.pty !== self;
+
+  self.onData((data) => {
+    if (superseded()) return;
     appendToBuffer(entry, data);
     if (entry.status !== 'running') setStatus(entry.id, 'running');
     armIdleTimer(entry);
     emit({ type: 'output', sessionId: entry.id, data });
   });
 
-  entry.pty.onExit(({ exitCode }) => {
+  self.onExit(({ exitCode }) => {
+    if (superseded()) return;
     clearTimeout(entry.idleTimer);
     entry.pty = null;
     setStatus(entry.id, 'exited', { force: true });
@@ -266,6 +281,9 @@ function restart(sessionId) {
   entry.buffer = [];
   entry.bufferBytes = 0;
   entry.status = 'running';
+  // A fresh process is a fresh waiting episode: it should be able to chime.
+  entry.notified = false;
+  entry.idleSince = null;
 
   store.updateSession(sessionId, { status: 'running', finishedAt: null, error: null });
   wire(entry);

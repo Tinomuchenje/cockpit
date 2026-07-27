@@ -105,12 +105,15 @@ export function Dialog({
   onClose,
   children,
   footer,
+  wide = false,
 }: {
   title: string;
   description?: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** For reference content — tables and definition lists cramp at the default. */
+  wide?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -146,7 +149,10 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="cp-pop-in w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl shadow-black/60"
+        className={cx(
+          'cp-pop-in w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl shadow-black/60',
+          wide ? 'max-w-2xl' : 'max-w-lg'
+        )}
       >
         <header className="border-b border-line px-5 py-4">
           <h2 className="text-base font-semibold text-ink">{title}</h2>

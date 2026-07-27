@@ -1,0 +1,60 @@
+# Builds installers on a version tag and attaches them to a GitHub Release.
+#
+#   npm version patch          # bumps package.json and creates the tag
+#   git push --follow-tags     # pushing the tag is what triggers this
+#
+# The release is created as a draft so you can write notes and sanity-check the
+# artefacts before anyone can download them. Publishing the draft is what makes
+# electron-updater offer the update to existing installs.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false # A broken mac build shouldn't withhold the Windows one.
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-latest
+            name: macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22.5+ is the floor for the built-in node:sqlite that db.js uses.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm 11 refuses install scripts by default. Electron's postinstall is
+      # what downloads its binary, so without this the build fails with no
+      # Electron to package. node-pty needs no script: it ships Node-API
+      # prebuilds, which is also why npmRebuild is off in electron-builder.yml.
+      - run: npm ci --foreground-scripts
+
+      - run: npm run typecheck
+      - run: npm run lint
+
+      - run: npm run build
+
+      # macOS is built unsigned and unnotarised. Without this, electron-builder
+      # tries to discover a signing identity, finds none, and fails the job.
+      # See the README on what this costs Mac users.
+      - name: Package
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false

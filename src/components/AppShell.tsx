@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useCockpit } from './CockpitProvider';
+import { AboutDialog } from './AboutDialog';
 import { Board } from './Board';
 import { TerminalPane } from './TerminalPane';
 import { Toasts } from './Toasts';
@@ -19,6 +20,8 @@ export function AppShell() {
     setMuted,
     closeSession,
   } = useCockpit();
+
+  const [showAbout, setShowAbout] = useState(false);
 
   /*
    * Ctrl/Cmd+1 jumps to the board, 2..9 to the nth session — switching
@@ -90,6 +93,14 @@ export function AppShell() {
 
         <div className="flex shrink-0 items-center gap-2 pl-2">
           <button
+            onClick={() => setShowAbout(true)}
+            title="What Cockpit does"
+            aria-label="What Cockpit does"
+            className="rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
+          >
+            <HelpIcon />
+          </button>
+          <button
             onClick={() => setMuted(!muted)}
             title={muted ? 'Sounds are off' : 'Sounds are on'}
             className="rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
@@ -148,6 +159,7 @@ export function AppShell() {
       </main>
 
       <Toasts />
+      {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
     </div>
   );
 }
@@ -218,18 +230,55 @@ function Tab({
   );
 }
 
+/*
+ * The attitude indicator from the app icon, redrawn as vectors. Kept in step
+ * with scripts/make-icon.mjs by hand: same bank angle, same pitch offset, same
+ * palette. If one changes, change the other.
+ */
 function Logo() {
   return (
     <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden>
-      <rect x="1" y="1" width="18" height="18" rx="5" fill="#7c5cff" opacity="0.18" />
+      <defs>
+        <clipPath id="cp-logo-face">
+          <circle cx="10" cy="10" r="8" />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#cp-logo-face)">
+        <rect x="0" y="0" width="20" height="20" fill="#2f3542" />
+        <g transform="rotate(-11 10 10)">
+          <rect x="-6" y="-6" width="32" height="17.9" fill="#7c5cff" />
+          <rect x="-6" y="11.9" width="32" height="0.6" fill="#e9ebef" />
+        </g>
+      </g>
+      <circle cx="10" cy="10" r="8" fill="none" stroke="#3d4452" strokeWidth="1.4" />
       <path
-        d="M6 7.5 8.5 10 6 12.5M10.5 12.5h3.5"
-        stroke="#8f74ff"
-        strokeWidth="1.6"
+        d="M5.8 10h2.1M12.1 10h2.1"
+        stroke="#e9ebef"
+        strokeWidth="1.3"
         strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
       />
+      <circle cx="10" cy="10" r="0.95" fill="#e9ebef" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9.2" />
+      <path
+        d="M9.4 9.2a2.7 2.7 0 1 1 3.4 2.6c-.5.2-.8.7-.8 1.2v.6"
+        strokeLinecap="round"
+      />
+      <path d="M12 16.8h.01" strokeLinecap="round" />
     </svg>
   );
 }

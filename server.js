@@ -16,6 +16,38 @@ const app = next({ dev, webpack: true });
 const handle = app.getRequestHandler();
 
 /*
+ * Binding to loopback keeps other machines out. It does NOT keep other *sites*
+ * out: a page in any tab can reach 127.0.0.1, and two of the browser's usual
+ * protections don't apply here.
+ *
+ *   - WebSockets are exempt from the same-origin policy entirely. Without this
+ *     check, any site could open ws://127.0.0.1:PORT/ws, read the `hello` frame
+ *     listing every live session, and send `input` frames into one. That is
+ *     keystroke injection into a live Claude Code session, which is arbitrary
+ *     command execution from a random tab.
+ *   - The JSON routes look CSRF-safe but aren't: `req.json()` parses the body
+ *     whatever the Content-Type says, so a cross-origin POST sent as
+ *     text/plain is a "simple" request, skips preflight, and takes effect even
+ *     though the attacker can't read the reply.
+ *
+ * Origin is attached by the browser to every cross-origin fetch and to form
+ * posts, and cannot be forged by page script, so allowlisting it fixes both.
+ * A missing Origin means it isn't a browser cross-origin request at all (curl,
+ * a top-level navigation), which is why absent is allowed and `null` is not.
+ */
+const ALLOWED_ORIGINS = new Set([
+  `http://127.0.0.1:${port}`,
+  `http://localhost:${port}`,
+  `http://[::1]:${port}`,
+]);
+
+function originAllowed(req) {
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  return ALLOWED_ORIGINS.has(origin);
+}
+
+/*
  * Any PTY from a previous run died with that process, so no session in the DB
  * can still be live. Mark them ended before the UI reads them.
  */
@@ -25,6 +57,11 @@ app.prepare().then(() => {
   const nextUpgradeHandler = app.getUpgradeHandler();
 
   const server = createServer((req, res) => {
+    if (!originAllowed(req)) {
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end('Cross-origin request refused.\n');
+      return;
+    }
     handle(req, res, parse(req.url, true));
   });
 
@@ -102,6 +139,13 @@ app.prepare().then(() => {
   });
 
   server.on('upgrade', (req, socket, head) => {
+    // Nothing below this line is protected by the same-origin policy, so the
+    // check has to happen before the handshake completes.
+    if (!originAllowed(req)) {
+      socket.destroy();
+      return;
+    }
+
     const { pathname } = parse(req.url, true);
     if (pathname === '/ws') {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws));

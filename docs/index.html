@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit — run Claude Code across several projects from one window</title>
+<meta name="description" content="A Kanban board that runs real interactive Claude Code sessions across all your repos, in one window.">
+<link rel="icon" href="img/icon.png">
+<meta property="og:title" content="Cockpit">
+<meta property="og:description" content="Run Claude Code across several projects from one window, driven by a Kanban board.">
+<meta property="og:image" content="img/board.png">
+<style>
+  :root {
+    --base:#0b0c0e; --surface:#12141a; --raised:#191c23; --line:#262a33;
+    --ink:#e9ebef; --muted:#98a0ad; --faint:#646c7a;
+    --accent:#7c5cff; --accent-hot:#8f74ff; --live:#34d399; --waiting:#fbbf24;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--base); color:var(--ink);
+    font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a { color:var(--accent-hot); }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 24px; }
+  code, kbd {
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:.88em;
+    background:var(--raised); border:1px solid var(--line);
+    border-radius:5px; padding:.12em .4em;
+  }
+  pre {
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; overflow-x:auto; font-size:14px;
+  }
+  pre code { background:none; border:0; padding:0; }
+
+  header { padding:72px 0 8px; text-align:center; }
+  .mark { width:84px; height:84px; border-radius:20px; display:block; margin:0 auto 22px; }
+  h1 { font-size:clamp(2.2rem,5vw,3.2rem); line-height:1.1; margin:0 0 14px; letter-spacing:-.02em; }
+  .tagline { font-size:clamp(1.05rem,2.2vw,1.3rem); color:var(--muted); margin:0 auto; max-width:34ch; }
+
+  .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:34px 0 10px; }
+  .btn {
+    display:inline-flex; align-items:center; gap:9px; text-decoration:none;
+    padding:12px 22px; border-radius:11px; font-weight:600; font-size:15px;
+    border:1px solid var(--line); color:var(--ink); background:var(--raised);
+    transition:transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .btn:hover { transform:translateY(-1px); background:#1f232b; border-color:#343a46; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover { background:var(--accent-hot); border-color:var(--accent-hot); }
+  .under { text-align:center; color:var(--faint); font-size:13.5px; margin:0; }
+
+  figure { margin:56px 0; }
+  figure img {
+    width:100%; height:auto; display:block;
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);
+  }
+  figcaption { color:var(--faint); font-size:13.5px; text-align:center; margin-top:12px; }
+
+  section { padding:16px 0 8px; }
+  h2 { font-size:1.55rem; letter-spacing:-.01em; margin:48px 0 6px; }
+  h2 + p.lede { color:var(--muted); margin:0 0 22px; }
+
+  .grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(258px,1fr)); }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px 22px; }
+  .card h3 { margin:0 0 7px; font-size:1.02rem; }
+  .card p { margin:0; color:var(--muted); font-size:14.5px; }
+
+  .warn {
+    border:1px solid #4a3a12; background:#1a1508; border-radius:14px;
+    padding:18px 22px; margin:26px 0;
+  }
+  .warn strong { color:var(--waiting); }
+  .warn p { margin:.45em 0 0; color:var(--muted); font-size:14.5px; }
+
+  table { width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--faint); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.06em; }
+  td:first-child { white-space:nowrap; color:var(--ink); }
+
+  footer {
+    margin-top:72px; padding:30px 0 60px; border-top:1px solid var(--line);
+    color:var(--faint); font-size:13.5px; display:flex; gap:18px;
+    justify-content:space-between; flex-wrap:wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <img class="mark" src="img/icon.png" alt="">
+    <h1>One window. Every project.</h1>
+    <p class="tagline">Cockpit runs real, interactive Claude Code sessions across all your repos, driven by a Kanban board.</p>
+
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Tinomuchenje/cockpit/releases/latest">Download for Windows</a>
+      <a class="btn" href="https://github.com/Tinomuchenje/cockpit/releases/latest">Download for macOS</a>
+      <a class="btn" href="https://github.com/Tinomuchenje/cockpit">Source on GitHub</a>
+    </div>
+    <p class="under">Free and MIT licensed. Requires the <code>claude</code> CLI, installed and signed in.</p>
+  </header>
+
+  <figure>
+    <img src="img/board.png" alt="The Cockpit board: cards across To Do, In Progress, Review and Done, with a panel at the top showing a session waiting for a reply.">
+    <figcaption>Every project on one board. A session that goes quiet surfaces at the top with what is actually on its screen, so you can answer without switching tabs.</figcaption>
+  </figure>
+
+  <section>
+    <h2>The problem</h2>
+    <p class="lede">Working across several repos means opening an editor, picking a workspace, starting Claude Code, pasting context, waiting, then repeating the whole ceremony to touch a different project. Cockpit collapses that into one window and one board.</p>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>A project is a folder you already have</h3>
+        <p>Cockpit never clones anything. Point it at what is on disk, with a filesystem picker that knows which folders are git repos.</p>
+      </div>
+      <div class="card">
+        <h3>A card's description is the prompt</h3>
+        <p>Hit Run and a session opens with that text pre-filled. Nothing is sent until you press Send, so you can edit it first.</p>
+      </div>
+      <div class="card">
+        <h3>Sessions outlive the tab</h3>
+        <p>The process lives in the backend. Switch tabs, navigate away, reload the page: it keeps running and the scrollback replays.</p>
+      </div>
+      <div class="card">
+        <h3>It tells you when it needs you</h3>
+        <p>A quiet session badges its tab, updates the window title and chimes once. Not once per repaint, once per waiting episode.</p>
+      </div>
+      <div class="card">
+        <h3>Answer without switching</h3>
+        <p>The attention panel shows the real rendered screen and gives you <kbd>1</kbd> <kbd>2</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd> plus a reply box.</p>
+      </div>
+      <div class="card">
+        <h3>See what a session can reach</h3>
+        <p>A read-only panel lists the skills, MCP servers and plugins a session in that project will actually have, read from Claude Code's own config.</p>
+      </div>
+    </div>
+  </section>
+
+  <figure>
+    <img src="img/session.png" alt="A Claude Code session running inside a Cockpit tab, mid-answer, with Compose, Restart and Close controls in the session header.">
+    <figcaption>A real terminal, not a transcript viewer. Zoom it, compose long prompts, or restart in place to pick up new MCP servers and skills.</figcaption>
+  </figure>
+
+  <section>
+    <h2>Install</h2>
+    <table>
+      <tr>
+        <th>Platform</th>
+        <th>What you get</th>
+      </tr>
+      <tr>
+        <td>Windows</td>
+        <td>An installer, per-user, no admin prompt. Updates itself from GitHub Releases. Windows will warn about an unknown publisher because the build is not code signed: choose <em>More info</em> then <em>Run anyway</em>.</td>
+      </tr>
+      <tr>
+        <td>macOS</td>
+        <td>A dmg for Intel and Apple Silicon. It is unsigned, so macOS quarantines it and reports it as damaged. Clear the flag with <code>xattr -dr com.apple.quarantine /Applications/Cockpit.app</code>. Auto-updates do not work on unsigned macOS builds.</td>
+      </tr>
+      <tr>
+        <td>From source</td>
+        <td><code>npm ci --foreground-scripts &amp;&amp; npm run app</code>. Node 22.5 or newer.</td>
+      </tr>
+    </table>
+
+    <div class="warn">
+      <strong>macOS support is unverified.</strong>
+      <p>Cockpit is built and tested on Windows. The macOS code paths exist and the build is produced by CI, but nobody has yet run it on real hardware. Treat the Mac download as a preview and please report what breaks.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Security, plainly</h2>
+    <p class="lede">Cockpit listens on <code>127.0.0.1</code> only, and there is no login. That bind address is the security model, not an implementation detail.</p>
+    <p style="color:var(--muted)">A terminal served over HTTP is a remote shell the moment it is reachable off-machine, and the folder picker will happily enumerate your filesystem. Requests from other websites are rejected by an origin check, but anything that can already run code on your machine can reach it. Do not change the bind address without adding authentication first.</p>
+  </section>
+
+  <footer>
+    <span>MIT licensed. Not affiliated with Anthropic.</span>
+    <span><a href="https://github.com/Tinomuchenje/cockpit">GitHub</a> · <a href="https://github.com/Tinomuchenje/cockpit/issues">Issues</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

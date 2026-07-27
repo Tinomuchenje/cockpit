@@ -1,0 +1,82 @@
+# Packaging config for the Electron shell. See electron/main.js for how the
+# server is started, and the README for what this does and doesn't give you.
+appId: com.cockpit.board
+productName: Cockpit
+copyright: ""
+
+directories:
+  output: release
+  buildResources: build
+
+# Drafts, not live releases: the tag build produces the artefacts, you decide
+# when they go out. Publishing the draft is also what makes electron-updater
+# start offering the update to existing Windows installs.
+publish:
+  provider: github
+  owner: Tinomuchenje
+  repo: cockpit
+  releaseType: draft
+
+# node-pty is built on Node-API, so its shipped prebuild is ABI-stable across
+# Node and Electron versions and loads as-is. Letting electron-builder rebuild
+# it would invoke node-gyp and demand Visual Studio Build Tools, which is the
+# exact dependency this project avoids elsewhere (see db.js on node:sqlite).
+npmRebuild: false
+
+# asar is off deliberately. Two things in here fight it: Next.js does a lot of
+# filesystem work resolving .next at runtime, and node-pty shells out to real
+# helper binaries (winpty-agent.exe, conpty.dll, OpenConsole.exe) that must
+# exist as actual files on disk. Unpacking both back out of the archive leaves
+# little left to archive, and a plain directory is far easier to diagnose.
+asar: false
+
+files:
+  - electron/**/*
+  - server.js
+  - src/**/*
+  - .next/**/*
+  - public/**/*
+  - next.config.ts
+  - package.json
+  - "!**/*.map"
+  - "!src/**/*.tsbuildinfo"
+  # The board is per-machine and lives in userData once packaged. Shipping a
+  # development database inside the installer would hand every install a copy
+  # of local project paths.
+  - "!data/**/*"
+
+win:
+  target:
+    - nsis
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false          # Per-user install needs no admin prompt.
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Cockpit
+
+# UNVERIFIED. The non-Windows branch of spawnClaude() has never been run, and
+# nobody has launched this target on real hardware. CI can produce a dmg; that
+# is not the same as it working.
+#
+# It is also unsigned and unnotarised, so macOS quarantines the download and
+# reports it as damaged until the user strips the attribute by hand, and
+# electron-updater cannot update it at all (Squirrel.Mac requires a signature).
+# Both are fixed by an Apple Developer account, not by config.
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+
+linux:
+  target:
+    - AppImage
+  icon: build/icon.png
+  category: Development
