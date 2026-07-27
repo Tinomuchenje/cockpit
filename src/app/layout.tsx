@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +27,17 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
+      <head>
+        {/*
+          Applies the stored theme before first paint. Server-rendered HTML
+          cannot know the preference, so without this the page renders dark
+          and then snaps to light, which is more jarring than having no light
+          mode at all. It has to be inline and synchronous to beat the paint.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       {/*
         suppressHydrationWarning: browser extensions inject attributes onto
         <body> before React hydrates (an "ap-style" attribute was the culprit

@@ -7,6 +7,7 @@ import { Board } from './Board';
 import { TerminalPane } from './TerminalPane';
 import { Toasts } from './Toasts';
 import { StatusDot, cx } from './ui';
+import { nextThemeMode, useTheme, type ThemeMode } from '@/lib/theme';
 
 export function AppShell() {
   const {
@@ -92,6 +93,7 @@ export function AppShell() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 pl-2">
+          <ThemeToggle />
           <button
             onClick={() => setShowAbout(true)}
             title="What Cockpit does"
@@ -258,6 +260,90 @@ function Logo() {
         strokeLinecap="round"
       />
       <circle cx="10" cy="10" r="0.95" fill="#e9ebef" />
+    </svg>
+  );
+}
+
+const THEME_LABEL: Record<ThemeMode, string> = {
+  system: 'Match the system',
+  light: 'Light',
+  dark: 'Dark',
+};
+
+/*
+ * One button that cycles system -> light -> dark. A three-way segmented
+ * control would make the options visible, but this sits in a row of icon
+ * buttons and a wide control there would unbalance the header for a setting
+ * most people touch once. The tooltip names both the current mode and the
+ * next one, so nothing is hidden.
+ */
+function ThemeToggle() {
+  const { mode, setMode } = useTheme();
+  const next = nextThemeMode(mode);
+
+  return (
+    <button
+      onClick={() => setMode(next)}
+      title={`Theme: ${THEME_LABEL[mode]} — click for ${THEME_LABEL[next]}`}
+      aria-label={`Theme: ${THEME_LABEL[mode]}. Click to switch to ${THEME_LABEL[next]}.`}
+      className="rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink"
+    >
+      {mode === 'system' ? <SystemIcon /> : mode === 'light' ? <SunIcon /> : <MoonIcon />}
+    </button>
+  );
+}
+
+function SystemIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="2.5" y="4" width="19" height="12.5" rx="2" />
+      <path d="M8.5 20.5h7M12 16.5v4" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M20.5 14.3A8.6 8.6 0 0 1 9.7 3.5a8.6 8.6 0 1 0 10.8 10.8Z" />
     </svg>
   );
 }

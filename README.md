@@ -285,6 +285,23 @@ It's read-only by design. Claude Code owns these files and writes them while it
 runs, so editing them here would race its own writes. Config changes also need a
 respawn to take effect, which is what **Restart** on a session is for.
 
+### Switch theme
+
+The icon left of the `?` in the header cycles **system → light → dark**. System
+follows the OS and keeps following it, so changing your OS theme changes
+Cockpit without a reload. The choice is stored in `localStorage` and applied by
+an inline script before first paint, so there is no flash of the wrong theme.
+
+Dark is still the default and the one the app is designed around. Light exists
+because not everyone works in a dark room, but note that the terminal goes
+light with it — Claude Code's TUI is drawn for a dark background, so some of
+its colours are less punchy there.
+
+This is deliberately not a CSS-only switch. The terminal palette moves with the
+chrome, because light chrome around a black terminal is exactly the mismatch
+that kept this app dark-only to begin with. If you change the tokens in
+`globals.css`, change `XTERM_THEMES` in `TerminalPane.tsx` to match.
+
 ### Keep the board manageable
 
 - **Archive** a project to drop it and its cards off the board without deleting
@@ -586,6 +603,7 @@ src/
     originGuard.js              cross-origin allowlist  (CommonJS)
     types.ts                    shared domain + frame types
     environment.ts              reads Claude Code's skills/MCP/plugin config
+    theme.ts                    system/light/dark store + no-flash boot script
     chime.ts                    Web Audio notification tones
     projectColor.ts             per-project accent colours
   app/
@@ -624,7 +642,8 @@ sessions with a pre-filled prompt; tabbed sessions with idle/exit badging, chime
 and title counts; board-side triage with inline replies; restart in place;
 terminal zoom; a read-only Environment panel for skills, MCP servers and plugins;
 an in-app panel explaining the model for first-time users; a packaged desktop app
-with lifecycle tied to the window and self-updating Windows builds.
+with lifecycle tied to the window and self-updating Windows builds; system,
+light and dark themes that carry the terminal palette with them.
 
 **Not built yet** (the remaining spec milestones):
 

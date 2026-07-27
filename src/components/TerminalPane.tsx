@@ -6,33 +6,70 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { Card, Project, Session } from '@/lib/types';
 import { STATUS_LABEL } from '@/lib/types';
+import { useTheme } from '@/lib/theme';
 import { useCockpit } from './CockpitProvider';
 import { PromptComposer } from './PromptComposer';
 import { Button, StatusDot, cx, statusTextClass } from './ui';
 
-const XTERM_THEME = {
-  background: '#0b0c0e',
-  foreground: '#e9ebef',
-  cursor: '#7c5cff',
-  cursorAccent: '#0b0c0e',
-  selectionBackground: '#2a2350',
-  black: '#12141a',
-  red: '#fb7185',
-  green: '#34d399',
-  yellow: '#fbbf24',
-  blue: '#60a5fa',
-  magenta: '#c084fc',
-  cyan: '#2dd4bf',
-  white: '#c7ccd6',
-  brightBlack: '#646c7a',
-  brightRed: '#fda4af',
-  brightGreen: '#6ee7b7',
-  brightYellow: '#fcd34d',
-  brightBlue: '#93c5fd',
-  brightMagenta: '#d8b4fe',
-  brightCyan: '#5eead4',
-  brightWhite: '#f8fafc',
-};
+/*
+ * One palette per theme, kept in step with the tokens in globals.css.
+ *
+ * The terminal has to move with the chrome. Light chrome around a black
+ * terminal is the exact thing that made this app dark-only to begin with.
+ *
+ * The light ANSI colours are not the dark ones dimmed. Terminal palettes are
+ * tuned for a dark background, and on white the bright variants in particular
+ * turn to pastel mush, so these are darkened until each still reads as its own
+ * colour against #ffffff.
+ */
+const XTERM_THEMES = {
+  dark: {
+    background: '#0b0c0e',
+    foreground: '#e9ebef',
+    cursor: '#7c5cff',
+    cursorAccent: '#0b0c0e',
+    selectionBackground: '#2a2350',
+    black: '#12141a',
+    red: '#fb7185',
+    green: '#34d399',
+    yellow: '#fbbf24',
+    blue: '#60a5fa',
+    magenta: '#c084fc',
+    cyan: '#2dd4bf',
+    white: '#c7ccd6',
+    brightBlack: '#646c7a',
+    brightRed: '#fda4af',
+    brightGreen: '#6ee7b7',
+    brightYellow: '#fcd34d',
+    brightBlue: '#93c5fd',
+    brightMagenta: '#d8b4fe',
+    brightCyan: '#5eead4',
+    brightWhite: '#f8fafc',
+  },
+  light: {
+    background: '#ffffff',
+    foreground: '#1b1f27',
+    cursor: '#5b34e8',
+    cursorAccent: '#ffffff',
+    selectionBackground: '#ded5ff',
+    black: '#1b1f27',
+    red: '#c02636',
+    green: '#0b7a44',
+    yellow: '#8a5a00',
+    blue: '#1d4ed8',
+    magenta: '#7326c9',
+    cyan: '#0e6f7f',
+    white: '#5b6472',
+    brightBlack: '#78818f',
+    brightRed: '#a81d2c',
+    brightGreen: '#086237',
+    brightYellow: '#6f4700',
+    brightBlue: '#1740b0',
+    brightMagenta: '#5c1ba3',
+    brightCyan: '#0a5866',
+    brightWhite: '#12151b',
+  },
+} as const;
 
 const FONT_MIN = 8;
 const FONT_MAX = 28;
@@ -66,6 +103,15 @@ export function TerminalPane({
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+
+  const { resolved: theme } = useTheme();
+  /*
+   * Held in a ref as well, so the xterm lifecycle effect can read the current
+   * palette at construction without listing `theme` as a dependency. Listing
+   * it would tear down and rebuild the terminal on every theme change, losing
+   * the scrollback and the cursor position.
+   */
+  const themeRef = useRef(theme);
 
   const [fontSize, setFontSize] = useState(() => readStoredFont());
   const [staleDismissed, setStaleDismissed] = useState(false);
@@ -129,7 +175,7 @@ export function TerminalPane({
         'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
       fontSize: FONT_DEFAULT,
       lineHeight: 1.35,
-      theme: XTERM_THEME,
+      theme: XTERM_THEMES[themeRef.current],
       allowProposedApi: true,
       scrollback: 5000,
     });
@@ -179,6 +225,21 @@ export function TerminalPane({
       fitRef.current = null;
     };
   }, [session.id, sendInput, subscribeOutput]);
+
+  /*
+   * Repaint the terminal when the theme changes. Assigning options.theme
+   * recolours the existing buffer in place, so scrollback and cursor position
+   * survive — unlike rebuilding the terminal, which would lose both.
+   */
+  useEffect(() => {
+    // Also where the ref is kept current: writing it during render is a
+    // React violation, and useRef's initial value already covers the first
+    // mount, so this only has to handle later changes.
+    themeRef.current = theme;
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = XTERM_THEMES[theme];
+  }, [theme]);
 
   /* Apply zoom changes and reflow the PTY to the new geometry. */
   useEffect(() => {
