@@ -24,6 +24,20 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new DatabaseSync(path.join(dataDir, 'cockpit.db'));
 
+/*
+ * Next's build-time "collecting page data" step imports every API route in
+ * several worker processes at once, each of which requires this module and
+ * opens its own connection to the same file. node:sqlite has no busy
+ * timeout by default, so two of those connections hitting the schema setup
+ * below at the same instant throws "database is locked" instead of one
+ * waiting for the other. WAL plus a timeout makes that a wait, not an error.
+ */
+// busy_timeout first: unlike journal_mode, it never touches the database
+// file, so it's always safe and is what makes the WAL switch below retry
+// instead of failing the instant another worker holds the write lock.
+db.exec('PRAGMA busy_timeout = 5000;');
+db.exec('PRAGMA journal_mode = WAL;');
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
