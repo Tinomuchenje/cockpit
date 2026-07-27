@@ -46,6 +46,16 @@ jobs:
       # prebuilds, which is also why npmRebuild is off in electron-builder.yml.
       - run: npm ci --foreground-scripts
 
+      # node-pty's macOS backend execs its bundled spawn-helper directly via
+      # posix_spawn. If that binary's +x bit doesn't survive npm's publish/
+      # extract round trip, every pty.spawn() on this runner fails with the
+      # generic "posix_spawnp failed." — which is what broke every mac release
+      # build so far, since this is the first time these tests have ever run
+      # on macOS (ci.yml is Windows-only).
+      - name: Ensure node-pty's macOS spawn-helper is executable
+        if: runner.os == 'macOS'
+        run: chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper
+
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
