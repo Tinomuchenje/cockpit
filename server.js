@@ -4,6 +4,7 @@ const next = require('next');
 const { WebSocketServer } = require('ws');
 const store = require('./src/lib/db');
 const sessions = require('./src/lib/sessionManager');
+const { makeOriginGuard } = require('./src/lib/originGuard');
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -15,37 +16,9 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev, webpack: true });
 const handle = app.getRequestHandler();
 
-/*
- * Binding to loopback keeps other machines out. It does NOT keep other *sites*
- * out: a page in any tab can reach 127.0.0.1, and two of the browser's usual
- * protections don't apply here.
- *
- *   - WebSockets are exempt from the same-origin policy entirely. Without this
- *     check, any site could open ws://127.0.0.1:PORT/ws, read the `hello` frame
- *     listing every live session, and send `input` frames into one. That is
- *     keystroke injection into a live Claude Code session, which is arbitrary
- *     command execution from a random tab.
- *   - The JSON routes look CSRF-safe but aren't: `req.json()` parses the body
- *     whatever the Content-Type says, so a cross-origin POST sent as
- *     text/plain is a "simple" request, skips preflight, and takes effect even
- *     though the attacker can't read the reply.
- *
- * Origin is attached by the browser to every cross-origin fetch and to form
- * posts, and cannot be forged by page script, so allowlisting it fixes both.
- * A missing Origin means it isn't a browser cross-origin request at all (curl,
- * a top-level navigation), which is why absent is allowed and `null` is not.
- */
-const ALLOWED_ORIGINS = new Set([
-  `http://127.0.0.1:${port}`,
-  `http://localhost:${port}`,
-  `http://[::1]:${port}`,
-]);
-
-function originAllowed(req) {
-  const origin = req.headers.origin;
-  if (origin === undefined) return true;
-  return ALLOWED_ORIGINS.has(origin);
-}
+// Keeps other websites out of the API and the socket. See originGuard.js for
+// why loopback alone is not enough.
+const originAllowed = makeOriginGuard(port);
 
 /*
  * Any PTY from a previous run died with that process, so no session in the DB

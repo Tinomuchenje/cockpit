@@ -101,8 +101,18 @@ npm run dev            # http://localhost:3000
 | `npm run build` | Production build (webpack — see [Platform notes](#platform-notes)) |
 | `npm start` | Serve the production build in the browser |
 | `npm run dist` | Build an installer for this platform into `release/` |
+| `npm test` | Session lifecycle and origin guard, via `node --test` |
 | `npm run typecheck` | `next typegen` then `tsc --noEmit` |
 | `npm run lint` | ESLint |
+
+`npm test` uses Node's built-in runner, no test framework. Session tests spawn
+real PTYs running `test/fake-runner.js` instead of the real CLI, so they need
+neither Claude Code installed nor a network, and cost nothing to run. The
+`COCKPIT_RUNNER` environment variable is the seam that makes that possible.
+
+Expect `AttachConsole failed` stack traces in the output. That is node-pty's
+Windows teardown helper, covered in [Troubleshooting](#troubleshooting), and
+does not affect the result.
 
 Working on the UI is fastest in the browser with `npm run dev`. The desktop app
 serves the production build, so a code change needs `npm run build` before it
@@ -552,12 +562,17 @@ scripts/
   cockpit.ps1                   headless launcher for the browser route
   make-icon.mjs                 generates build/icon.png and the favicon
 docs/                           GitHub Pages landing page + screenshots
+test/
+  fake-runner.js                scripted stand-in for `claude`
+  sessionManager.test.js        spawn, idle, restart, exit, close, buffer cap
+  originGuard.test.js           the cross-origin allowlist
 src/
   lib/
     db.js                       SQLite store, migrations   (CommonJS)
     db.d.ts                     hand-written types for it
     sessionManager.js           owns every live PTY        (CommonJS)
     sessionManager.d.ts         hand-written types for it
+    originGuard.js              cross-origin allowlist  (CommonJS)
     types.ts                    shared domain + frame types
     environment.ts              reads Claude Code's skills/MCP/plugin config
     chime.ts                    Web Audio notification tones
@@ -610,10 +625,11 @@ with lifecycle tied to the window and self-updating Windows builds.
   already in the schema for it.
 - Tab reordering.
 - macOS/Linux verification. The platform branches exist but are untested.
-- **Automated tests. There are none.** The session lifecycle is exactly the
-  fiddly async code that needs them: a restart bug that left the new PTY
-  orphaned and the session silently unable to receive keystrokes shipped
-  undetected. This is the first thing to fix before taking pull requests.
+- Broader test coverage. The session lifecycle and the origin guard are
+  covered; the API routes, the React layer and `environment.ts` redaction are
+  not. The lifecycle came first because that is where both bugs found so far
+  lived, including a restart that left the new PTY orphaned and the session
+  silently unable to receive a keystroke.
 
 ---
 

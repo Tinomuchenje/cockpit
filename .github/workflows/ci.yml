@@ -34,4 +34,7 @@ jobs:
 
       - run: npm run typecheck
       - run: npm run lint
+      # Spawns real PTYs running test/fake-runner.js, so it needs node-pty's
+      # native binary. That is why this job is not on a Linux runner.
+      - run: npm test
       - run: npm run build

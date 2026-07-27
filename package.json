@@ -11,6 +11,7 @@
     "build": "next build --webpack",
     "start": "cross-env NODE_ENV=production node server.js",
     "lint": "eslint",
+    "test": "node --test --test-force-exit \"test/*.test.js\"",
     "typecheck": "next typegen && tsc --noEmit",
     "app": "npm run build && electron .",
     "app:dev": "electron .",

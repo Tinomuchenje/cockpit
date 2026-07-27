@@ -70,6 +70,20 @@ function spawnClaude({ cwd, cols, rows, args = [] }) {
     cwd,
     env: process.env,
   };
+  /*
+   * COCKPIT_RUNNER swaps the binary. Nothing in the app sets it; it exists so
+   * the tests can drive a scripted stand-in rather than requiring Claude Code
+   * to be installed and signed in on whatever machine runs them. It is also
+   * the seam a real multi-runner feature would grow from, since this function
+   * is the only place that knows which program a session runs.
+   */
+  if (process.env.COCKPIT_RUNNER) {
+    const extra = process.env.COCKPIT_RUNNER_ARGS
+      ? JSON.parse(process.env.COCKPIT_RUNNER_ARGS)
+      : [];
+    return pty.spawn(process.env.COCKPIT_RUNNER, [...extra, ...args], opts);
+  }
+
   if (process.platform === 'win32') {
     return pty.spawn('cmd.exe', ['/c', 'claude', ...args], opts);
   }

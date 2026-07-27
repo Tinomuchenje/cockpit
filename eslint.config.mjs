@@ -27,7 +27,11 @@ const eslintConfig = defineConfig([
       "server.js",
       "src/lib/db.js",
       "src/lib/sessionManager.js",
+      "src/lib/originGuard.js",
       "electron/main.js",
+      // The tests require those same CommonJS modules, and node:test runs
+      // them outside any bundler.
+      "test/**/*.js",
     ],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
