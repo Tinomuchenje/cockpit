@@ -86,15 +86,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      # TEMPORARY: verifying the node-pty/.next exclude patterns actually took
-      # effect in the unpacked app before DMG/nsis compression. Remove once confirmed.
-      - name: DEBUG packaged file sizes
-        shell: bash
-        run: |
-          echo "--- release tree ---"
-          find release -maxdepth 3 -type d
-          echo "--- node-pty prebuilds wherever they landed ---"
-          find release -path "*node-pty/prebuilds*" -maxdepth 20 -type d -exec du -sh {} \;
-          echo "--- .next/cache wherever it landed ---"
-          find release -path "*/.next/cache" -maxdepth 20 -type d -exec du -sh {} \;
