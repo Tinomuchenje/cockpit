@@ -17,6 +17,9 @@ on:
 jobs:
   check:
     runs-on: windows-latest
+    # The suite spawns PTYs. If one wedges on a runner, the default six-hour
+    # limit means a single bad commit sits there burning the queue.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4

@@ -114,6 +114,16 @@ Expect `AttachConsole failed` stack traces in the output. That is node-pty's
 Windows teardown helper, covered in [Troubleshooting](#troubleshooting), and
 does not affect the result.
 
+**Why `test/run.js` exists rather than plain `node --test`.** node-pty leaves a
+handle open on Windows after teardown, so a process that has spawned a PTY does
+not exit and the runner never finalises: no summary, no exit code, roughly two
+runs in three. `--test-force-exit` does not reliably beat it, and forcing the
+process down from outside loses the result. So `sessionManager.test.js` keeps
+its own tally and exits on it, and `run.js` runs each file in turn and collects
+exit codes. It counts failures itself rather than reading `process.exitCode`,
+which is still undefined when the `after` hook runs — trusting it would report
+a pass on a failing suite, which is worse than hanging.
+
 Working on the UI is fastest in the browser with `npm run dev`. The desktop app
 serves the production build, so a code change needs `npm run build` before it
 shows up.
@@ -563,6 +573,7 @@ scripts/
   make-icon.mjs                 generates build/icon.png and the favicon
 docs/                           GitHub Pages landing page + screenshots
 test/
+  run.js                        test entry point, works around a PTY hang
   fake-runner.js                scripted stand-in for `claude`
   sessionManager.test.js        spawn, idle, restart, exit, close, buffer cap
   originGuard.test.js           the cross-origin allowlist

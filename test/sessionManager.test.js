@@ -6,11 +6,38 @@
  *
  * Sessions run test/fake-runner.js instead of the real CLI, via COCKPIT_RUNNER.
  */
-const test = require('node:test');
+const nodeTest = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+/*
+ * node-pty leaves a handle open on Windows after teardown, so once this file
+ * has spawned a PTY the process will not exit on its own, and node:test never
+ * finalises the run — no summary, no exit code, just a wedged process. In CI
+ * that is a job sitting on the step until the runner kills it, which is what
+ * happened the first time this suite ran there.
+ *
+ * --test-force-exit does not reliably beat it, and forcing the process down
+ * from outside loses the result. So the file keeps its own tally and exits on
+ * it. Counting here rather than reading process.exitCode is deliberate: that
+ * is still undefined when the after hook runs, so trusting it would report a
+ * pass on a failing suite, which is far worse than hanging.
+ */
+let failures = 0;
+
+function test(name, fn) {
+  return nodeTest(name, async (t) => {
+    try {
+      await fn(t);
+    } catch (err) {
+      failures += 1;
+      throw err;
+    }
+  });
+}
+test.after = nodeTest.after;
 
 // db.js opens its database at require time, so the data directory and the
 // runner have to be set before anything below is loaded.
@@ -86,6 +113,17 @@ test.after(() => {
       // Left for the OS.
     }
   }
+
+  // Long enough for the reporter to flush the failure details, short enough
+  // that nobody waits on it. See the note at the top of this file.
+  setTimeout(() => {
+    process.stdout.write(
+      failures > 0
+        ? `\n${failures} test(s) failed in this file.\n`
+        : '\nAll session tests passed.\n'
+    );
+    process.exit(failures > 0 ? 1 : 0);
+  }, 500);
 });
 
 /* -------------------------------------------------------------------- tests */
