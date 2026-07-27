@@ -30,6 +30,11 @@ npmRebuild: false
 # little left to archive, and a plain directory is far easier to diagnose.
 asar: false
 
+# Base list, used as-is by linux (no override below). electron-builder does
+# NOT merge a platform's `files` with this list — `win:`/`mac:` each fully
+# REPLACE it since they declare their own `files` (for the node-pty prebuild
+# excludes, see there) — so each repeats this whole list rather than just
+# adding an exclude. Keep all three in sync by hand if this list changes.
 files:
   - electron/**/*
   - server.js
@@ -44,11 +49,36 @@ files:
   # development database inside the installer would hand every install a copy
   # of local project paths.
   - "!data/**/*"
+  # Webpack's build cache, not a runtime asset. `next start` never reads it,
+  # and it dwarfs the actual .next output it sits next to (tens of MB vs low
+  # single digits).
+  - "!.next/cache/**/*"
 
 win:
   target:
     - nsis
   icon: build/icon.png
+  # Full copy of the root `files` list above (electron-builder replaces,
+  # not merges, on a platform override) plus one exclude: node-pty ships
+  # prebuilt binaries for every OS/arch inside one package unconditionally
+  # (unlike e.g. next's @next/swc, which npm only installs the matching
+  # platform for), so left alone this installer drags along darwin's native
+  # pty binaries for nothing. Not split by arch here because `target` above
+  # doesn't pin one, so both win32-x64 and win32-arm64 prebuilds may be
+  # needed — revisit if that ever gets pinned.
+  files:
+    - electron/**/*
+    - server.js
+    - src/**/*
+    - .next/**/*
+    - public/**/*
+    - next.config.ts
+    - package.json
+    - "!**/*.map"
+    - "!src/**/*.tsbuildinfo"
+    - "!data/**/*"
+    - "!.next/cache/**/*"
+    - "!node_modules/node-pty/prebuilds/darwin-*/**"
 
 nsis:
   oneClick: false
@@ -79,6 +109,22 @@ mac:
   category: public.app-category.developer-tools
   # Same reasoning as nsis.artifactName: a stable, versionless name per arch.
   artifactName: "${productName}-${arch}.${ext}"
+  # Full copy of the root `files` list (see the comment on `win:` above for
+  # why this can't just add an exclude) minus node-pty's windows prebuilds —
+  # a mac DMG has no use for winpty-agent.exe/conpty.dll/OpenConsole.exe.
+  files:
+    - electron/**/*
+    - server.js
+    - src/**/*
+    - .next/**/*
+    - public/**/*
+    - next.config.ts
+    - package.json
+    - "!**/*.map"
+    - "!src/**/*.tsbuildinfo"
+    - "!data/**/*"
+    - "!.next/cache/**/*"
+    - "!node_modules/node-pty/prebuilds/win32-*/**"
 
 linux:
   target:
