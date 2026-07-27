@@ -1,0 +1,37 @@
+# Gate on every push and pull request. The release workflow only runs on tags,
+# which means without this nothing checks a contribution until it is too late
+# to matter.
+#
+# Runs on Windows because that is the platform Cockpit is developed and tested
+# on, and because node-pty ships no Linux prebuild: an Ubuntu runner would fall
+# back to node-gyp and need a C++ toolchain to install a dependency this job
+# never executes.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22.5+ is the floor for the built-in node:sqlite that db.js uses.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm 11 blocks install scripts by default, which leaves Electron with no
+      # binary. Harmless for these steps, but keep it consistent with release.yml
+      # so a failure shows up here first rather than at tag time.
+      - run: npm ci --foreground-scripts
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
